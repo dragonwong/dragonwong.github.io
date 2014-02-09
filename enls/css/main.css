@@ -279,9 +279,12 @@ header{
 						.explanation{
 							border-bottom: 1px solid #bbb;
 						}
-						#stage-node .explanation .detail li{
-							margin-left: 5px;
-						}
+							#stage-node .explanation .detail li{
+								margin-left: 10px;
+							}
+							#stage-node .explanation .detail ul>li{
+								margin-left: 0px;
+							}
 
 						.next .node{
 							border-bottom: 1px solid #eee;
@@ -301,9 +304,6 @@ header{
 							top: 50%;
 							line-height: 36px;
 							margin-top: -18px;
-						}
-						.next .node:nth-child(even){
-							background: #ECF8FF;
 						}
 							.next .node>.title{
 								font-size: 15px;
@@ -390,16 +390,37 @@ ul.tree{
 				color: #fff;
 				text-align: center;
 				min-width: 20px;
-				max-width: 100px;
 				overflow: hidden;
 	            text-overflow: ellipsis;
 	            white-space: nowrap;
 			}
 
+/* index */
+#index .next .node:nth-child(even){
+	background: rgba(236, 248, 255, 0.84);
+}
+
 /* about */
-.about .detail p{
+#about .detail p{
 	margin-bottom: 10px;
 }
+
+/* download */
+#download .next>a{
+	display: block;
+	background: rgba(255, 255, 255, 0.8);
+}
+#download .next>a:nth-child(even){
+	background: rgba(226, 244, 255, 0.8);
+}
+#download .next .prompt{
+	cursor: auto;
+}
+#download .next .node.prompt:after{
+	content: "";
+}
+
+
 
 /* media query */
 
