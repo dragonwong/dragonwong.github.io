@@ -322,7 +322,7 @@
 			xr.stage_node.innerHTML = html;
 
 			//回到顶部
-			xr.body.scrollTop = 0;
+			documentElement.scrollTop = 0;
 
 			//add event
 			var dom_children = Array.prototype.slice.call(document.querySelectorAll('#stage-node .next .node'));
