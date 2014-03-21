@@ -9,6 +9,12 @@
 		border: 1px solid red;
 		margin-bottom: 20px;
 	}
+		.left{
+			background-color: yellow;
+		}
+		.right{
+			background-color: green;
+		}
 
 	.box1{
 		overflow: hidden;
@@ -16,21 +22,32 @@
 		.box1 .left{
 			float: left;
 			width: 30%;
-			background-color: yellow;
 			margin-bottom: -1000px;
 			padding-bottom: 1000px;
 		}
 		.box1 .right{
 			margin-left: 30%;
-			background-color: green;
 			margin-bottom: -1000px;
 			padding-bottom: 1000px;
 		}
 	
+	.box2{
+		display: table;
+		width: 100%;
+	}
+		.box2 .left{
+			width: 30%;
+			display: table-cell;
+		}
+		.box2 .right{
+			display: table-cell;
+		}
 </style>
 </head>
 <body>
-	<p>多栏布局-高度撑开</p>	
+	<h1>多栏布局-高度撑开</h1>
+
+	<h2>margin-bottom负值</h2>
 	
 	<div class="box box1">
 		<div class="left">
@@ -44,6 +61,20 @@
 			I am taller.
 		</div>
 	</div>
+	
+	<h2>display: table-cell</h2>
 
+	<div class="box box2">
+		<div class="left">
+			left
+		</div>
+		<div class="right">
+			right
+			<br>
+			<br>
+			<br>
+			I am taller.
+		</div>
+	</div>
 
 </body>
