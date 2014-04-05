@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多栏布局-高度撑开</title>
+<style>
+	.box{
+		border: 1px solid red;
+		margin-bottom: 20px;
+	}
+		.left{
+			background-color: yellow;
+		}
+		.right{
+			background-color: green;
+		}
+
+	.box1{
+		overflow: hidden;
+	}
+		.box1 .left{
+			float: left;
+			width: 30%;
+			margin-bottom: -1000px;
+			padding-bottom: 1000px;
+		}
+		.box1 .right{
+			margin-left: 30%;
+			margin-bottom: -1000px;
+			padding-bottom: 1000px;
+		}
+	
+	.box2{
+		display: table;
+		width: 100%;
+	}
+		.box2 .left{
+			width: 30%;
+			display: table-cell;
+		}
+		.box2 .right{
+			display: table-cell;
+		}
+</style>
+</head>
+<body>
+	<h1>多栏布局-高度撑开</h1>
+
+	<h2>margin-bottom负值</h2>
+	
+	<div class="box box1">
+		<div class="left">
+			left
+		</div>
+		<div class="right">
+			right
+			<br>
+			<br>
+			<br>
+			I am taller.
+		</div>
+	</div>
+	
+	<h2>display: table-cell</h2>
+
+	<div class="box box2">
+		<div class="left">
+			left
+		</div>
+		<div class="right">
+			right
+			<br>
+			<br>
+			<br>
+			I am taller.
+		</div>
+	</div>
+
+</body>
