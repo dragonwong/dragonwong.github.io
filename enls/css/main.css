@@ -178,7 +178,7 @@ header{
 			#page_welcome{
 				flex: 1;
 				-webkit-flex: 1;
-				background: url("../images/launchPageBG.jpg") no-repeat right top;
+				background: url("../images/launchPageBG.jpg") no-repeat right bottom;
 				background-size: 100% auto;
 			}
 				#page_welcome .this{
