@@ -395,6 +395,9 @@
 			document.getElementById('bt-tree').onclick = function(){
 				xr.showStage('tree');
 			};
+			document.getElementById('bt-home').onclick = function(){
+				location.href = location.hostname + location.pathname;
+			};
 			xr.bt_note.onclick = function(){
 				if(xr.bt_note_isable){
 					xr.showStage('note');
