@@ -1,7 +1,13 @@
 window.onload= function(){
 
 	//计时
-    var	stamp_0 = Date.parse("7/15/2013 18:51:00"),
+    //
+    var	
+    	//认识
+    	//stamp_0 = Date.parse("7/15/2013 18:51:00"),
+		//在一起		
+		stamp_0 = Date.parse("7/31/2013"),
+		
 		reckon_label = document.querySelectorAll('.reckon-label'),
 		reckon_show = reckon_label[0],
 		reckon_run = true;
@@ -18,14 +24,16 @@ window.onload= function(){
     	var s = ms / 1000,
     		m = Math.floor(s / 60),
     		h = Math.floor(m / 60),
-		
-		sec = s%60;
+    		d = Math.floor(h / 24),
+
+		//sec = s%60;
 		min = m%60;
+		hou = h%24;
 
-		sec = sec < 10 ? ("0" + sec) : sec;
-		min = min < 10 ? ("0" + min) : min;
+		//sec = sec < 10 ? ("0" + sec) : sec;
+		//min = min < 10 ? ("0" + min) : min;
 
-    	return h + ":" + min + ":" + sec;
+    	return d + "天" + hou + "时" + min + "分";
     }
 
     //首页效果

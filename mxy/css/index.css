@@ -159,6 +159,11 @@ strong{
 			.hide{
 				background-color: #640822; 
 			}
+		article img{
+			display: block;
+			max-width: 100%;
+			margin: 0 auto;
+		}
 
 	.heart{
 		text-align: center;
