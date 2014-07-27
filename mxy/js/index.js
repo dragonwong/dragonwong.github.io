@@ -1,40 +1,72 @@
 window.onload= function(){
 
+	//loader
+	(function(){
+
+		var text_arr = [
+				'正在美化照片...',
+				'正在偷偷删除奇怪的内容...',
+				'正在藏起其他女生的照片...',
+				'正在练习可爱的说话...',
+				'正在练习坏坏地笑...',
+				'正在准备笑话...',
+				'正在刮胡子...',
+				'正在整理发型...'
+			],
+			text_dom = document.querySelector('.loader .text'),
+			switchText_run = true,
+			switchText_time = 1000;
+
+		//切换文字内容
+		setTimeout(switchText, switchText_time);
+		//关闭loader
+		setTimeout(closeLoader, 3000);
+
+
+		function switchText(){
+			var len = text_arr.length,
+				index = Math.floor(Math.random() * len);
+
+
+			if(switchText_run){
+				text_dom.innerHTML += '<p>' + text_arr.splice(index, 1) + '</p>';
+				setTimeout(switchText, switchText_time);
+			}
+		}
+
+		function closeLoader(){
+
+			var	loader = document.querySelector('.loader');
+			
+			switchText_run = false;
+			text_dom.innerHTML += '<p>加载完成！</p>';
+
+			setTimeout(function(){
+				loader.style.top = "-100%";
+				setTimeout(function(){
+					document.body.removeChild(loader);
+				}, 1000);
+			}, switchText_time);
+		}
+
+	})();
+
 	//计时
-    //
     var	
-    	//认识
+    	//认识时间戳
     	//stamp_0 = Date.parse("7/15/2013 18:51:00"),
-		//在一起		
+		//在一起时间戳
 		stamp_0 = Date.parse("7/31/2013"),
 		
 		reckon_label = document.querySelectorAll('.reckon-label'),
 		reckon_show = reckon_label[0],
+		//计时开启标志位
 		reckon_run = true;
 
-	function reckon(){
-		reckon_show.innerHTML = format(Date.parse(new Date()) - stamp_0);
-		if(reckon_run){
-			setTimeout(reckon, 1000);
-		}
-    }
+	//开始计时
     reckon();
 
-    function format(ms){
-    	var s = ms / 1000,
-    		m = Math.floor(s / 60),
-    		h = Math.floor(m / 60),
-    		d = Math.floor(h / 24),
-
-		//sec = s%60;
-		min = m%60;
-		hou = h%24;
-
-		//sec = sec < 10 ? ("0" + sec) : sec;
-		//min = min < 10 ? ("0" + min) : min;
-
-    	return d + "天" + hou + "时" + min + "分";
-    }
+    
 
     //首页效果
 	var tri_r = document.querySelector('.tri-r');
@@ -57,7 +89,7 @@ window.onload= function(){
 			setTimeout(function(){
 				document.body.removeChild(start);
 				reckon_run = false;
-			}, 1000)
+			}, 1000);
 
 		}, 800)
 
@@ -89,9 +121,33 @@ window.onload= function(){
 				main.style.display = "none";
 				cover_r.style.right = "0";
 				cover_l.style.left = "0";
-			}, 1000)
+			}, 1000);
 
 		}, 500)
 
 	};
+
+	//计时函数
+	function reckon(){
+		reckon_show.innerHTML = format(Date.parse(new Date()) - stamp_0);
+		if(reckon_run){
+			setTimeout(reckon, 1000);
+		}
+    }
+    //日期格式化
+    function format(ms){
+    	var s = ms / 1000,
+    		m = Math.floor(s / 60),
+    		h = Math.floor(m / 60),
+    		d = Math.floor(h / 24),
+
+		//sec = s%60;
+		min = m%60;
+		hou = h%24;
+
+		//sec = sec < 10 ? ("0" + sec) : sec;
+		//min = min < 10 ? ("0" + min) : min;
+
+    	return d + "天" + hou + "时" + min + "分";
+    }
 };

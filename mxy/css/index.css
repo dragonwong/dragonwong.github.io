@@ -1,3 +1,37 @@
+/* loader */
+@-webkit-keyframes spinner {
+	50%{
+		border-radius: 50%;
+		transform: scale(0.5) rotate(360deg);
+	}
+
+	100%{
+		transform: scale(1) rotate(720deg);
+	}
+}
+@-webkit-keyframes shadow {
+	50%{
+		transform: scale(0.5);
+		background-color: #ec4931;
+	}
+}
+
+/* heart */
+@-webkit-keyframes shine-1{
+	from{
+		color: #f193b7;
+	}to{
+		color: #eb699b;
+	}
+}
+@-webkit-keyframes shine-2{
+	from{
+		color: #eb699b;
+	}to{
+		color: #f5b5ce;
+	}
+}
+
 html{
 	height: 100%;
 }
@@ -15,20 +49,7 @@ strong{
 	color: #e2266e;
 }
 
-@-webkit-keyframes shine-1{
-	from{
-		color: #f193b7;
-	}to{
-		color: #eb699b;
-	}
-}
-@-webkit-keyframes shine-2{
-	from{
-		color: #eb699b;
-	}to{
-		color: #f5b5ce;
-	}
-}
+
 
 .cover{
 	height: 100%;
@@ -38,6 +59,46 @@ strong{
 	-webkit-transition: all .8s ease;
 	z-index: 10;
 }
+
+.loader{
+	background-color: #f07260;
+	z-index: 11;
+	top: 0;
+}
+	.text{
+		font-size: 12px;
+		padding: 5px;
+	}
+	.spinner{
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		font-size: 64px;
+	}
+	.spinner:before, .spinner:after{
+		content: "";
+		position: relative;
+		display: block;
+	}
+	.spinner:before{
+		-webkit-animation: spinner 2.5s cubic-bezier(0.75, 0, 0.5, 1) infinite normal;
+		width: 1em;
+		height: 1em;
+		background-color: #fff;
+	}
+	.spinner:after{
+		-webkit-animation: shadow 2.5s cubic-bezier(0.75, 0, 0.5, 1) infinite normal;
+		bottom: -.5em;
+		height: .25em;
+		border-radius: 50%;
+		background-color: #e9341a;
+	}
+
+
+
+
+
 .start{
 	background: url(../img/am-start-bg.jpg) no-repeat;
 	background-size: cover;
