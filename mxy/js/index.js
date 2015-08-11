@@ -53,11 +53,11 @@ window.onload = function(){
 
 
 
-//计时
+// 计时
 var	
-	//认识时间戳
-	//stamp_0 = Date.parse("7/15/2013 18:51:00"),
-	//在一起时间戳
+	// 认识时间戳
+	// stamp_0 = Date.parse("7/15/2013 18:51:00"),
+	// 在一起时间戳
 	stamp_0 = Date.parse("7/31/2013"),
 	
 	reckon_label = document.querySelectorAll('.reckon-label'),
@@ -130,14 +130,14 @@ heart.onclick = function(){
 };
 
 //计时函数
-function reckon(){
+function reckon() {
 	reckon_show.innerHTML = format(Date.parse(new Date()) - stamp_0);
-	if(reckon_run){
+	if (reckon_run) {
 		setTimeout(reckon, 1000);
 	}
 }
 //日期格式化
-function format(ms){
+function format(ms) {
 	var s = ms / 1000,
 		m = Math.floor(s / 60),
 		h = Math.floor(m / 60),
