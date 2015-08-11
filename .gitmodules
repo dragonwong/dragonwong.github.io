@@ -1,0 +1,3 @@
+[submodule "kana"]
+	path = kana
+	url = https://github.com/dragonwong/kana.git
