@@ -1,3 +1,7 @@
 [submodule "kana"]
 	path = kana
 	url = https://github.com/dragonwong/kana.git
+[submodule "dialoger"]
+	path = dialoger
+	url = https://github.com/dragonwong/dialoger.git
+	branch = master
