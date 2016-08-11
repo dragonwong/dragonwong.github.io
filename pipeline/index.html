@@ -1,0 +1,1669 @@
+<!-- 
+	
+pipeline
+2013/5/5-2013/5/27
+by while and alian
+@uestc
+
+·补充lui指令
+
+-->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>CPU流水线仿真</title>
+<style type="text/css">
+body{
+	font-family: "SimHei",Arial;
+}
+textarea{
+	width: 453px;
+	height: 100px;
+}
+.example{
+	cursor: pointer;
+	text-decoration: underline;
+}
+.controller span{
+	display: inline-block;
+    text-align: center;
+    width: 100px;
+    padding: 10px 0px;
+    color: #fff;
+    font-weight: bold;
+    text-transform: uppercase;
+    text-decoration: none;
+    margin-right: 20px;
+    background-color: #aaa;
+    cursor: default;
+}
+.controller .active{
+    background-color: #00CCFF;
+    cursor: pointer;
+
+}
+.controller .active:hover{
+    background-color: #1570A6;
+}
+.code{
+	background-color: #272822;
+	color: #8e8f8a;
+	padding: 5px 5px;
+	margin-bottom: 1.2em;
+}
+.code li{
+	margin-left: 50px;
+}
+.code li:hover{
+	background-color: #333;
+}
+.code li span{
+	color: #fff;
+}
+</style>
+</head>
+<body>
+	<h1>高级语言（javascript）流水线仿真v1.7.2</h1>
+	<p>请输入汇编指令（操作数、操作码之间请用空格，指令之间请使用换行，<a href="#example">示例</a>）</p>
+	<textarea id="input"></textarea>
+	<p class="controller"><span id="analyse" class="active">分析</span><span id="start">播放</span><span id="next" title="快捷键：N">下一步</span><span id="back">重新开始</span></p>
+	<canvas id="canvas" width="1200" height="650">
+		抱歉，您的浏览器不支持canvas绘图，推荐使用<a href="http://www.google.com/chrome" target="_blank">chrome浏览器</a>
+	</canvas>
+	<div id="example">
+		<h2>示例：</h2>
+		<section>
+			<h4>数据相关（内部前推）：</h4>
+			<ol class="code">
+				<li><span>addi&nbsp;r1&nbsp;r2&nbsp;#12</span></li>
+				<li><span>addi&nbsp;r3&nbsp;r4&nbsp;#10</span></li>
+				<li><span>add&nbsp;&nbsp;r5&nbsp;r1&nbsp;r3</span></li>
+			</ol>
+			<a href="#input">粘贴</a>
+		</section>
+		<section>
+			<h4>load相关（load指令前加一条空指令，内部前推）：</h4>
+			<ol class="code">
+				<li><span>addi&nbsp;&nbsp;r1&nbsp;r2&nbsp;#8</span></li>
+				<li><span>store&nbsp;r1&nbsp;r3&nbsp;#2</span></li>
+				<li><span>load&nbsp;&nbsp;r4&nbsp;r3&nbsp;#2</span></li>
+			</ol>
+			<a href="#input">粘贴</a>
+		</section>
+		<section>
+			<h4>控制相关(在bne上插一条空指令，确保Z标志位准备好)：</h4>
+			<ol class="code">
+				<li><span>addi&nbsp;r1&nbsp;r1&nbsp;#5</span></li>
+				<li><span>addi&nbsp;r2&nbsp;r2&nbsp;#15</span></li>
+				<li><span>subi&nbsp;r2&nbsp;r2&nbsp;#1</span></li>
+				<li><span>subi&nbsp;r1&nbsp;r1&nbsp;#1</span></li>
+				<li><span>bne&nbsp;&nbsp;#-2</span></li>
+			</ol>
+			<a href="#input">粘贴</a>
+		</section>
+		<section>
+			<h4>store相关（内部解决）：</h4>
+			<ol class="code">
+				<li><span>addi&nbsp;&nbsp;r1&nbsp;r2&nbsp;#8</span></li>
+				<li><span>store&nbsp;r1&nbsp;r3&nbsp;#2</span></li>
+			</ol>
+			<a href="#input">粘贴</a>
+		</section>
+	</div>
+	<footer>
+		<h2>小记：</h2>
+		<p>这个本是体系结构的课程设计，老师让在5月28日前提交。我在5月5号绘完图并实现动画效果之后就没什么进展，因为我没有做流水线逻辑上的设计，动画打算自己分析所有情况写死。可想而知，这样又笨又累。直到在23号阿连建议我从对每个小部件的仿真来实现对整个流水线的仿真。我赶忙掉头，悬崖勒马。4天时间，在阿连的大力帮助之下按时提交了。所以这个流水线仿真也是尽可能地仿照真实器件的工作原理。做到最后，我们可以确定地知道每个时刻，每个部件，每根线里面是什么值。一开始的时候还担心工作量很大会做不完，后来发现有真实的物理器件作为参照，反而更快了。其实方向找对了，自然事半功倍。以后一定会怀念那些半夜3点的激情讨论的，对吧，阿连！</p>
+		<p>欢迎测试交流<a href="http://while.sinaapp.com" target="_blank">@while</a></p>
+	</footer>
+</body>
+<script>
+//canvas
+	//画布初始化
+	var w = 1200 , h = 650;
+	var canvas=document.getElementById("canvas");
+	var context=canvas.getContext('2d');
+	context.fillStyle="#272822";
+	context.fillRect(0,0,w,h);
+	
+	//rect
+	function Rect(x, y, w, h){
+		this.x = x;
+		this.y = y;
+		this.w = w;
+		this.h = h;
+		this.text = [];
+		this.text_x = [];
+		this.text_y = [];
+		this.line_arr_entr = [];
+		this.line_arr_exit = [];
+		this.data;
+	}
+	Rect.prototype = {
+		addText : function(){
+			for(var i=0;i<arguments.length;){
+				this.text.push(arguments[i++]);
+				this.text_x.push(arguments[i++]);
+				this.text_y.push(arguments[i++]);
+			}
+		},
+		writeText : function(){
+			context.fillStyle="#000";
+			for(var i=0;i<this.text.length;i++){
+				context.fillText(this.text[i], this.x+this.text_x[i], this.y+this.text_y[i]);			
+			}
+		},
+		on : function(){
+			context.fillStyle = "#00CCFF";
+			context.fillRect(this.x, this.y ,this.w, this.h);
+			this.writeText();
+		},
+		off : function(){
+			context.fillStyle = "#FFF";
+			context.fillRect(this.x, this.y ,this.w, this.h);
+			this.writeText();
+		},
+		checkEntr : function(){
+			var tem_bool = true;
+			this.line_arr_entr.forEach(function(item, index, array){
+				tem_bool = item.enable() && tem_bool;
+			});
+			return tem_bool;
+		},
+		resetEntr : function(){
+			this.line_arr_entr.forEach(function(item, index, array){
+				item.sig = 0;
+			});
+		},
+		setExit : function(mutex_bool){
+			if(mutex_bool){					//参数true表示不设置mutex
+				this.line_arr_exit.forEach(function(item, index, array){
+					item.sig = 1;
+				});	
+			}else{
+				this.line_arr_exit.forEach(function(item, index, array){
+					item.setSig(1);
+				});	
+			}
+		},
+		showContent : function(content){   //显示寄存器或存储器的值
+			this.text[1] = content;
+			this.text_x[1] = 45;
+			this.text_y[1] = 15;
+			this.off();
+		},
+		showInst : function(inst){
+			this.text[1] = inst;
+			this.text_x[1] = 55;
+			this.text_y[1] = 15;
+			this.off();
+		}
+	};
+
+	//line
+	function Line(){
+		this.x = [];
+		this.y = [];
+		this.sig = 0;
+		this.mutex = 0;
+		this.data;
+	}
+	Line.prototype = {
+		addPath : function(){
+			for(var i=0;i<arguments.length;){
+				this.x.push(arguments[i++]);
+				this.y.push(arguments[i++]);
+			}
+		},
+		on : function(){
+			context.strokeStyle = "#00CCFF";
+			context.fillStyle = "#00CCFF";
+			this.drawLine();
+		},
+		off : function(){
+			context.strokeStyle = "#FFF";
+			context.fillStyle = "#FFF";
+			this.drawLine();
+		},
+		drawLine : function(){
+			context.beginPath();
+			context.moveTo(this.x[0],this.y[0]);
+			for(var i=1;i<this.x.length;i++){
+				context.lineTo(this.x[i],this.y[i]);
+			}
+			context.lineWidth = 2;
+			context.stroke();
+
+			//绘制三角形箭头
+			var end_x = this.x[i-1],
+				end_y = this.y[i-1],
+				sub_end_x = this.x[i-2],
+				sub_end_y = this.y[i-2],
+				tri_x1, tri_x2, tri_y1, tri_y2;
+
+			if(end_x > sub_end_x){
+				tri_x1 = tri_x2 = -5;
+			}else if(end_x < sub_end_x){
+				tri_x1 = tri_x2 = 5;
+			}else{
+				tri_x1 = -3;
+				tri_x2 = 3;
+			}
+			if(end_y > sub_end_y){
+				tri_y1 = tri_y2 = -5;
+			}else if(end_y < sub_end_y){
+				tri_y1 = tri_y2 = 5;
+			}else{
+				tri_y1 = -3;
+				tri_y2 = 3;
+			}
+
+			context.beginPath();
+			context.moveTo(end_x,end_y);
+			context.lineTo(end_x+tri_x1,end_y+tri_y1);
+			context.lineTo(end_x+tri_x2,end_y+tri_y2);
+			context.closePath();
+			context.fill();
+			context.stroke();
+		},
+		setSig : function(sig){					//置1或2必须调用此函数
+			this.sig = sig;
+			this.mutex = 2;
+		},
+		enable : function(){
+			if(this.mutex == 1){
+				this.mutex--;
+				return false;
+			}else if(this.mutex == 0 && this.sig != 0){
+				return true;
+			}else{
+				return false;
+			}
+		},
+		check : function(){
+			if(this.sig == 2 && this.mutex == 0){
+				this.on();
+			}else if(this.mutex == 2){
+				this.off();
+				this.mutex--;
+			}else{
+				this.off();
+			}
+		}
+	}
+	
+	//all obj
+	var objs = [];
+
+	//rect
+	var rect_pc = new Rect(25,150,25,200),
+		rect_im = new Rect(100,200,50,100),
+		rect_ir = new Rect(175,150,25,200),
+		rect_mux_1 = new Rect(250,275,25,75),
+		rect_rf = new Rect(300,175,75,150),
+		rect_ise = new Rect(300,350,75,25),
+		rect_pr_1 = new Rect(400,150,25,350),
+		rect_pr_2 = new Rect(650,150,25,350),
+		rect_pr_3 = new Rect(800,150,25,350),
+		rect_mux_a = new Rect(500,200,25,50),
+		rect_mux_b = new Rect(500,275,25,50),
+		rect_alu = new Rect(575,200,50,125),
+		rect_dm = new Rect(725,200,50,175),
+		rect_mux_2 = new Rect(850,250,25,75),
+		rect_mux_3 = new Rect(75,25,25,75),
+		rect_add = new Rect(125,50,50,75),
+		rect_dse = new Rect(200,25,50,25),
+		rect_decoder = new Rect(250,400,75,150);
+		
+
+		//寄存器堆,初始化为0
+		var rect_reg = [];
+		for(var i = 0; i < 10; i++){
+			var rect_reg_tmp = new Rect(980,50+i*35,80,25);
+			rect_reg_tmp.data = 0;
+			rect_reg_tmp.addText("r"+i, 15, 15);
+			rect_reg_tmp.off();
+			rect_reg.push(rect_reg_tmp);
+		}
+
+		//存储器单元，初始化为0
+		var rect_mem = [];
+		for (var i = 0; i < 10; i++){
+			var rect_mem_tmp= new Rect(1080,50+35*i,80,25);
+			rect_mem_tmp.data = 0;
+			rect_mem_tmp.addText("m"+i,15,15);
+			rect_mem_tmp.off();
+			rect_mem.push(rect_mem_tmp);
+		}
+
+		//指令各阶段显示
+		//IF------1
+		var rect_inst = [];
+		for (var i = 0; i < 5; i++)
+		{
+			var name;
+			if (i == 0)
+				name = "IF:";
+			else if (i == 1)
+				name = "ID:";
+			else if (i == 2)
+				name = "IE:";
+			if (i == 3)
+				name = "MEM:";
+			if (i == 4)
+				name = "WB:";
+			var rect_inst_tmp = new Rect(980, 415+35*i, 180, 25);
+			rect_inst_tmp.data = 0;
+			rect_inst_tmp.addText(name, 15, 15);
+			rect_inst_tmp.off();
+			rect_inst.push(rect_inst_tmp);
+		}
+
+	var objs_rect = [rect_pc, rect_mux_1, rect_rf, rect_ise, rect_pr_3, rect_pr_2, rect_pr_1, rect_ir, rect_im, rect_mux_a, rect_mux_b, rect_alu, rect_dm, rect_mux_2, rect_mux_3, rect_add, rect_dse, rect_decoder];
+
+
+	rect_pc.addText("PC",5,105);
+	rect_im.addText("A",5,55,"D",40,55);
+	rect_ir.addText("IR",5,105);
+	rect_mux_1.addText("MUX",5,38,"rs2",2,25,"rd",2,55);
+	rect_mux_2.addText("MUX",5,38);
+	rect_mux_3.addText("MUX",5,38);
+	rect_mux_a.addText("0",8,15,"1",8,25,"2",8,35,"3",8,45);
+	rect_mux_b.addText("0",8,15,"1",8,25,"2",8,35,"3",8,45);
+	rect_rf.addText("WE",31,10,"DI",5,30,"AD",5,55,"A1",5,80,"A2",5,140,"Q1",60,40,"Q2",60,115);
+	rect_ise.addText("ISE",31,15);
+	rect_add.addText("+",35,40);
+	rect_dse.addText("DSE",15,15);
+	rect_decoder.addText("DECODER",20,80,"OPCODE",8,20,"rs1",8,35,"rs2",8,50,"rd",8,65);
+	rect_pr_1.addText("d",8,20,"A",8,65,"B",8,140,"I",8,215);
+	rect_pr_2.addText("d",8,20,"Z",8,105,"R",8,130,"S",8,205);
+	rect_pr_3.addText("d",8,20,"D",8,130,"C",8,243);
+	rect_alu.addText("A",8,30,"B",8,105,"ZERO",20,55,"ALU",25,80);
+	rect_dm.addText("A",8,80,"DI",8,155,"DO",30,80,"WE",20,170);
+
+	//line
+	var	line_1_mux_3 = new Line(),
+		line_mux_3_add = new Line(),
+		line_dse_mux_3 = new Line(),
+		line_add_pc = new Line(),
+		line_pc_im = new Line(),
+		line_pc_add = new Line(),
+		line_im_ir = new Line(),
+		line_ir_dse = new Line(),
+		line_ir_pr_1 = new Line(),
+		line_ir_rf = new Line(),
+		line_ir_mux_1_rs2 = new Line(),
+		line_ir_mux_1_rd = new Line(),
+		line_ir_ise = new Line(),
+		line_ir_decoder_opcode = new Line(),
+		line_ir_decoder_rs1 = new Line(),
+		line_ir_decoder_rs2 = new Line(),
+		line_ir_decoder_rd = new Line(),
+		line_mux_1_rf = new Line(),
+		line_decoder_mux_1 = new Line(),
+		line_decoder_mux_3 = new Line(),
+		line_decoder_pr_1_bdepen = new Line(),
+		line_decoder_pr_1_adepen = new Line(),
+		line_decoder_pr_1_aluop = new Line(),
+		line_decoder_pr_1_wz = new Line(),
+		line_decoder_pr_1_wmen = new Line(),
+		line_decoder_pr_1_sld = new Line(),
+		line_decoder_pr_1_wreg = new Line(),
+		line_rf_pr_1_a = new Line(),
+		line_rf_pr_1_b = new Line(),
+		line_ise_pr_1 = new Line(),
+		line_pr_1_decoder_d = new Line(),
+		line_pr_1_pr_2_d = new Line(),
+		line_pr_1_mux_a = new Line(),
+		line_pr_1_mux_b_0 = new Line(),
+		line_pr_1_pr_2_s = new Line(),
+		line_pr_1_mux_b_1 = new Line(),
+		line_pr_1_mux_b_bdepen = new Line(),
+		line_pr_1_mux_a_adepen = new Line(),
+		line_pr_1_alu = new Line(),
+		line_pr_1_pr_2_wz = new Line(),
+		line_pr_1_pr_2_wmem = new Line(),
+		line_pr_1_pr_2_sld = new Line(),
+		line_pr_1_pr_2_wreg = new Line(),
+		line_pr_1_decoder_wreg = new Line(),
+		line_1_mux_a = new Line(),
+		line_mux_a_alu = new Line(),
+		line_mux_b_alu = new Line(),
+		line_alu_pr_2_z = new Line(),
+		line_alu_pr_2_r = new Line(),
+		line_pr_2_decoder_d = new Line(),
+		line_pr_2_pr_3_d = new Line(),
+		line_pr_2_decoder_zero = new Line(),
+		line_pr_2_dm_a = new Line(),
+		line_pr_2_mux_a = new Line(),
+		line_pr_2_mux_b = new Line(),
+		line_pr_2_pr_3_c = new Line(),
+		line_pr_2_dm_di = new Line(),
+		line_pr_2_dm_we = new Line(),
+		line_pr_2_pr_3_sld = new Line(),
+		line_pr_2_pr_3_wreg = new Line(),
+		line_pr_2_decoder_wreg = new Line(),
+		line_dm_pr_3 = new Line(),
+		line_pr_3_mux_2_d = new Line(),
+		line_pr_3_mux_2_c = new Line(),
+		line_pr_3_mux_2_sld = new Line(),
+		line_pr_3_rf_ad = new Line();
+		line_pr_3_rf_we = new Line();
+		line_mux_2_mux_a = new Line();
+		line_mux_2_mux_b = new Line();
+		line_mux_2_rf = new Line();
+
+		//load暂停流水线
+		line_decoder_ir = new Line();
+		line_decoder_pc = new Line();  
+		line_pr_1_decoder_sld = new Line();
+
+	var objs_line = [line_1_mux_3, line_mux_3_add, line_dse_mux_3, line_add_pc, line_pc_im, line_pc_add, line_im_ir, line_ir_dse, line_ir_pr_1, line_ir_rf, line_ir_mux_1_rs2, line_ir_mux_1_rd, line_ir_ise, line_ir_decoder_opcode, line_ir_decoder_rs1, line_ir_decoder_rs2, line_ir_decoder_rd, line_mux_1_rf, line_decoder_mux_1, line_decoder_mux_3, line_decoder_pr_1_bdepen, line_decoder_pr_1_adepen, line_decoder_pr_1_aluop, line_decoder_pr_1_wz, line_decoder_pr_1_wmen, line_decoder_pr_1_sld, line_decoder_pr_1_wreg, line_rf_pr_1_a, line_rf_pr_1_b, line_ise_pr_1, line_pr_1_decoder_d, line_pr_1_pr_2_d, line_pr_1_mux_a, line_pr_1_mux_b_0, line_pr_1_pr_2_s, line_pr_1_mux_b_1, line_pr_1_mux_b_bdepen, line_pr_1_mux_a_adepen, line_pr_1_alu, line_pr_1_pr_2_wz, line_pr_1_pr_2_wmem, line_pr_1_pr_2_sld, line_pr_1_pr_2_wreg, line_pr_1_decoder_wreg, line_mux_a_alu, line_mux_b_alu, line_alu_pr_2_z, line_alu_pr_2_r, line_pr_2_decoder_d, line_pr_2_pr_3_d, line_pr_2_decoder_zero, line_pr_2_dm_a, line_pr_2_mux_a, line_pr_2_mux_b, line_1_mux_a, line_pr_2_pr_3_c, line_pr_2_dm_di, line_pr_2_dm_we, line_pr_2_pr_3_sld, line_pr_2_pr_3_wreg, line_pr_2_decoder_wreg, line_dm_pr_3, line_pr_3_mux_2_d, line_pr_3_mux_2_c, line_pr_3_mux_2_sld, line_pr_3_rf_ad, line_pr_3_rf_we, line_mux_2_mux_a, line_mux_2_mux_b, line_mux_2_rf, line_decoder_ir, line_decoder_pc, line_pr_1_decoder_sld];
+
+	line_1_mux_3.addPath(50,75, 75,75);
+	line_mux_3_add.addPath(100,62, 125,62);
+	line_dse_mux_3.addPath(225,25, 225,13, 50,13, 50,50, 75,50);
+	line_add_pc.addPath(175,87, 187,87, 187,19, 13,19, 13,250, 25,250);
+	line_pc_im.addPath(50,250, 100,250);
+	line_pc_add.addPath(50,250, 63,250, 63,112, 125,112);
+	line_im_ir.addPath(150,250, 175,250);
+	line_ir_dse.addPath(200,250, 225,250, 225,50);
+	line_ir_pr_1.addPath(200,250, 225,250, 225,163, 400,163);
+	line_ir_rf.addPath(200,250, 300,250);
+	line_ir_mux_1_rs2.addPath(200,250, 225,250, 225,300, 250,300);
+	line_ir_mux_1_rd.addPath(200,250, 225,250, 225,325, 250,325);
+	line_ir_ise.addPath(200,250, 225,250, 225,362, 300,362);
+	line_ir_decoder_opcode.addPath(200,250, 225,250, 225,415, 250,415);
+	line_ir_decoder_rs1.addPath(200,250, 225,250, 225,430, 250,430);
+	line_ir_decoder_rs2.addPath(200,250, 225,250, 225,445, 250,445);
+	line_ir_decoder_rd.addPath(200,250, 225,250, 225,460, 250,460);
+	line_mux_1_rf.addPath(275,312, 300,312);
+	line_decoder_mux_1.addPath(262,400, 262,350);
+	line_decoder_mux_3.addPath(325,525, 350,525, 350,625, 87,625, 87,100);
+	line_decoder_pr_1_bdepen.addPath(325,412, 400,412);
+	line_decoder_pr_1_adepen.addPath(325,425, 400,425);
+	line_decoder_pr_1_aluop.addPath(325,437, 400,437);
+	line_decoder_pr_1_wz.addPath(325,450, 400,450);
+	line_decoder_pr_1_wmen.addPath(325,462, 400,462);
+	line_decoder_pr_1_sld.addPath(325,475, 400,475);
+	line_decoder_pr_1_wreg.addPath(325,487, 400,487);
+	line_rf_pr_1_a.addPath(375,210, 400,210);
+	line_rf_pr_1_b.addPath(375,285, 400,285);
+	line_ise_pr_1.addPath(375,362, 400,362);
+	line_pr_1_decoder_d.addPath(425,163, 437,163, 437,562, 225,562, 225,537, 250,537);
+	line_pr_1_pr_2_d.addPath(425,163, 650,163);
+	line_pr_1_mux_a.addPath(425,210, 500,210);
+	line_pr_1_mux_b_0.addPath(425,285, 500,285);
+	line_pr_1_pr_2_s.addPath(425,285, 450,285, 450,350, 650,350);
+	line_pr_1_mux_b_1.addPath(425,362, 487,362, 487,295, 500,295);
+	line_pr_1_mux_b_bdepen.addPath(425,412, 512,412, 512,325);
+	line_1_mux_a.addPath(487,220, 500,220);
+	line_pr_1_mux_a_adepen.addPath(425,425, 550,425, 550,262, 512,262, 512,250);
+	line_pr_1_alu.addPath(425,437, 600,437, 600,325);
+	line_pr_1_pr_2_wz.addPath(425,450, 625,450, 625,337, 650,337);
+	line_pr_1_pr_2_wmem.addPath(425,462, 650,462);
+	line_pr_1_pr_2_sld.addPath(425,475, 650,475);
+	line_pr_1_pr_2_wreg.addPath(425,487, 650,487);
+	line_pr_1_decoder_wreg.addPath(425,487, 450,487, 450,575, 212,575, 212,525, 250,525);
+	line_mux_a_alu.addPath(525,225, 575,225);
+	line_mux_b_alu.addPath(525,300, 575,300);
+	line_alu_pr_2_z.addPath(625,250, 650,250);
+	line_alu_pr_2_r.addPath(625,275, 650,275);
+	line_pr_2_decoder_d.addPath(675,163, 700,163, 700,600, 188,600, 188,500, 250,500);
+	line_pr_2_pr_3_d.addPath(675,163, 800,163);
+	line_pr_2_decoder_zero.addPath(675,250, 687,250, 687,587, 200,587, 200,512, 250,512);
+	line_pr_2_dm_a.addPath(675,275, 725,275);
+	line_pr_2_mux_a.addPath(675,275, 712,275, 712,125, 475,125, 475,230, 500,230);
+	line_pr_2_mux_b.addPath(675,275, 712,275, 712,125, 475,125, 475,305, 500,305);
+	line_pr_2_pr_3_c.addPath(675,275, 712,275, 712,388, 800,388);
+	line_pr_2_dm_di.addPath(675,350, 725,350);
+	line_pr_2_dm_we.addPath(675,462, 750,462, 750,375);
+	line_pr_2_pr_3_sld.addPath(675,475, 800,475);
+	line_pr_2_pr_3_wreg.addPath(675,487, 800,487);
+	line_pr_2_decoder_wreg.addPath(675,487, 712,487, 712,612, 175,612, 175,488, 250,488);
+	line_dm_pr_3.addPath(775,275, 800,275);
+	line_pr_3_mux_2_d.addPath(825,275, 850,275);
+	line_pr_3_mux_2_c.addPath(825,388, 837,388, 837,300, 850,300);
+	line_pr_3_mux_2_sld.addPath(825,475, 862,475, 862,325);
+	line_pr_3_rf_ad.addPath(825,163, 837,163, 837,75, 250,75, 250,225, 300,225);
+	line_pr_3_rf_we.addPath(825,487, 900,487, 900,50, 337,50, 337,175);
+	line_mux_2_mux_a.addPath(875,287, 887,287, 887,100, 462,100, 462,240, 500,240);
+	line_mux_2_mux_b.addPath(875,287, 887,287, 887,100, 462,100, 462,315, 500,315);
+	line_mux_2_rf.addPath(875,287, 887,287, 887,100, 275,100, 275,200, 300,200);
+
+	//load暂停流水线
+	line_decoder_ir.addPath(325,505, 385,505, 385,138, 187,138, 187,150);
+	line_decoder_pc.addPath(325,505, 385,505, 385,138, 187,138, 37,138, 37,150);
+	line_pr_1_decoder_sld.addPath(465,475, 465,500, 465,638, 160,638, 160,476, 250,476);
+
+	//初始化
+	objs_rect.forEach(function(item, index, array){
+		item.off();
+	});
+	objs_line.forEach(function(item, index, array){
+		item.off();
+	});
+
+
+	var im_bool = false,
+		sect_0_bool = false,
+		sect_1_bool = false,
+		pr_2_bool = false;
+
+	rect_ir.is_on = false;
+
+	rect_pr_1.d = "none";
+	rect_pr_1.a = "none";
+	rect_pr_1.b = "none";
+	rect_pr_1.i = "none";
+	rect_pr_1.adepend = "none";
+	rect_pr_1.bdepend = "none";
+	rect_pr_1.aluop = "none";
+	rect_pr_1.wz = "none";
+	rect_pr_1.wmem = "none";
+	rect_pr_1.wreg = "none";
+	rect_pr_1.sld = "none";
+	rect_pr_1.is_on = false;
+
+	rect_pr_2.d = "none";
+	rect_pr_2.z = "none";
+	rect_pr_2.r = "none";
+	rect_pr_2.s = "none";
+	rect_pr_2.wmem = "none";
+	rect_pr_2.sld = "none";
+	rect_pr_2.wreg = "none";
+	rect_pr_2.is_on = false;
+
+	rect_pr_3.d = "none";
+	rect_pr_3.du = "none";
+	rect_pr_3.c = "none";
+	rect_pr_3.sld = "none";
+	rect_pr_3.wreg = "none";
+	rect_pr_3.is_on = false;
+
+	//内部解决store相关
+	var store_rd_relate_rd = 0;
+	var store_rd_relate_rd_data = 0;
+
+	//load相关检测
+	function clearLoadRelated(){
+		var i;
+		var inst_cur;
+		var inst_nxt;
+		for (i = 0; i < code_arr.length - 1; i++){
+			inst_cur = code_arr[i].split(/\s+/);			//当前指令
+			inst_nxt = code_arr[i+1].split(/\s+/);		//后一条指令
+
+			if (inst_cur[0] == "load"){
+				if (inst_cur[1] == inst_nxt[2] || inst_cur[1] == inst_nxt[3]){
+					//插入无关指令
+					code_arr.splice(i+1, 0, "add r0 r0 r0");
+				}
+			}
+		}
+	};
+
+	function clearBneAndBeqInfluence(){
+		var i;
+		var inst_cur;
+		for (i = 0; i < code_arr.length; i++){
+			inst_cur = code_arr[i].split(/\s+/);			//当前指令
+			if (inst_cur[0] == "bne" || inst_cur[0] == "beq"){
+				//修改bne的偏移量
+				var tmp = Number(inst_cur[1].slice(1));
+				//alert("tmp = "+tmp);
+				if (tmp < 0)
+				{
+					tmp = tmp - 1;
+					var newinst = inst_cur[0]+" "+"#"+tmp;
+					code_arr.splice(i, 1, newinst);
+				}
+				//在bne和beq之前插入一条无关指令
+				code_arr.splice(i, 0, "add r0 r0 r0");
+				//alert("bne");
+				i++;
+			}
+		}
+	};
+
+	line_add_pc.sig = 2;
+	line_add_pc.data = 0;
+
+	line_1_mux_3.data = 1;
+	line_1_mux_3.sig = 2;
+
+	//rect_pc
+	rect_pc.line_arr_entr.push(line_add_pc);
+	rect_pc.line_arr_exit.push(line_pc_add, line_pc_im);
+	rect_pc.check = function(){
+		if(this.checkEntr()){
+			var data = line_add_pc.data;
+			this.on();
+			
+			this.data = data;
+			
+			this.resetEntr();
+
+			line_pc_add.setSig(2);
+			line_pc_im.setSig(2);
+
+			line_pc_add.data = data;
+			line_pc_im.data = data;
+		}else{
+			this.off();
+		}
+	};
+	//rect_im
+	rect_im.line_arr_entr.push(line_pc_im);
+	rect_im.line_arr_exit.push(line_im_ir);
+	rect_im.check = function(){
+		if(this.checkEntr()){
+			this.on();
+			if(line_pc_im.data < code_arr.length){
+				line_im_ir.setSig(2);
+				line_im_ir.data = code_arr[line_pc_im.data];
+				im_bool = true;
+				//显示IF级指令
+				rect_inst[0].showInst(code_arr[line_pc_im.data]);
+				rect_inst[0].data = code_arr[line_pc_im.data];
+			}else{
+				im_bool = false;
+				//显示IF级指令   空
+				rect_inst[0].showInst(" ");
+				rect_inst[0].data = 0;
+			}
+			this.resetEntr();
+		}else{
+			this.off();
+		}
+	};
+	//rect_add
+	rect_add.line_arr_entr.push(line_pc_add,line_mux_3_add);
+	rect_add.line_arr_exit.push(line_add_pc);
+	rect_add.check = function(){
+		if(this.checkEntr()){
+			this.on();
+			this.data = line_pc_add.data + line_mux_3_add.data;
+			
+			line_add_pc.data = this.data;
+
+			line_add_pc.setSig(2);
+			this.resetEntr();
+		}else{
+			this.off();
+		}
+	};
+	//rect_mux_3
+	rect_mux_3.line_arr_entr.push(line_decoder_mux_3, line_dse_mux_3);
+	rect_mux_3.line_arr_exit.push(line_mux_3_add);
+	rect_mux_3.check = function(){
+		if(this.checkEntr()){
+			if(line_decoder_mux_3.data == 0){
+				line_mux_3_add.data = line_dse_mux_3.data;
+			}else{
+				line_mux_3_add.data = line_1_mux_3.data;
+			}
+			this.on();
+
+			this.resetEntr();
+			line_mux_3_add.setSig(2);
+		}else{
+			this.off();
+		}
+	};
+	//rect_dse
+	rect_dse.line_arr_entr.push(line_ir_dse);
+	rect_dse.line_arr_exit.push(line_dse_mux_3);
+	rect_dse.check = function(){
+		if(this.checkEntr()){
+			if(line_ir_dse.sig == 2){
+				this.on();
+				var tmp = line_ir_dse.data.slice(1);
+				line_dse_mux_3.data = Number(tmp);
+				line_dse_mux_3.setSig(2);
+			}else{
+				line_dse_mux_3.setSig(1);
+			}
+			this.resetEntr();
+		}else{
+			this.off();
+		}
+	};
+
+	//从后面开始
+	//rect_mux_2
+	rect_mux_2.line_arr_entr.push(line_pr_3_mux_2_d, line_pr_3_mux_2_c, line_pr_3_mux_2_sld);
+	rect_mux_2.line_arr_exit.push(line_mux_2_mux_a, line_mux_2_mux_b, line_mux_2_rf);
+	rect_mux_2.check = function(){
+		if(rect_mux_2.checkEntr()){
+			if (line_pr_3_mux_2_sld.data == 1){					//load
+				this.on();
+				line_mux_2_mux_a.data = line_pr_3_mux_2_d.data;
+				line_mux_2_mux_b.data = line_pr_3_mux_2_d.data;
+				line_mux_2_rf.data    = line_pr_3_mux_2_d.data;
+
+				line_mux_2_mux_a.setSig(2);
+				line_mux_2_mux_b.setSig(2);
+				line_mux_2_rf.setSig(2);
+			}else if (line_pr_3_mux_2_sld.data == 0){ 			//普通指令
+				this.on();
+				line_mux_2_mux_a.data = line_pr_3_mux_2_c.data;
+				line_mux_2_mux_b.data = line_pr_3_mux_2_c.data;
+				line_mux_2_rf.data    = line_pr_3_mux_2_c.data;
+
+				line_mux_2_mux_a.setSig(2);
+				line_mux_2_mux_b.setSig(2);
+				line_mux_2_rf.setSig(2);
+			}else{		//store
+				//
+			}
+			this.resetEntr();
+		}else{
+			this.off();
+		}
+	};
+
+	//rect_pr3
+	rect_pr_3.line_arr_entr.push(line_pr_2_pr_3_d,line_dm_pr_3,line_pr_2_pr_3_c,line_pr_2_pr_3_sld,line_pr_2_pr_3_wreg);
+	rect_pr_3.line_arr_exit.push(line_pr_3_rf_ad,line_pr_3_mux_2_d,line_pr_3_mux_2_c,line_pr_3_mux_2_sld,line_pr_3_rf_we);
+	rect_pr_3.check = function(){
+		if(rect_pr_3.checkEntr()){
+			this.on();
+			this.is_on = true;
+
+			//存储begin
+			this.d = line_pr_2_pr_3_d.data;
+			this.du = line_dm_pr_3.data;
+			this.c = line_pr_2_pr_3_c.data;
+			this.sld = line_pr_2_pr_3_sld.data;
+			this.wreg = line_pr_2_pr_3_wreg.data;
+			//存储end
+
+			//store相关内部解决
+			store_rd_relate_rd_data = this.c;
+
+			this.resetEntr();
+
+			rect_inst[3].showInst(" ");
+			//
+			rect_inst[4].data = rect_inst[3].data;
+			if (rect_inst[4].data != 0)
+				rect_inst[4].showInst(rect_inst[4].data);
+
+		}else if((!sect_1_bool || rect_pr_2.is_on) && this.is_on){
+			this.off();
+			rect_pr_3.is_on = false;
+
+			//赋值begin
+			line_pr_3_rf_ad.data = this.d;
+			line_pr_3_mux_2_c.data = this.c;
+			line_pr_3_mux_2_sld.data = this.sld;
+			line_pr_3_rf_we.data = this.wreg;
+
+			line_pr_3_rf_ad.sig = 2;
+			line_pr_3_mux_2_c.sig = 2;
+			line_pr_3_mux_2_sld.sig = 2;
+			line_pr_3_rf_we.sig = 2;
+
+			if(this.du != "none"){
+				line_pr_3_mux_2_d.sig = 2;
+				line_pr_3_mux_2_d.data = this.du;
+			}else{
+				line_pr_3_mux_2_d.sig = 1;
+			}
+			//赋值end
+
+			rect_pr_3.d = "none";
+			rect_pr_3.du = "none";
+			rect_pr_3.c = "none";
+			rect_pr_3.sld = "none";
+			rect_pr_3.wreg = "none";
+		}
+	};
+	//rect_dm
+	rect_dm.line_arr_entr.push(line_pr_2_dm_a, line_pr_2_dm_di, line_pr_2_dm_we);
+	rect_dm.line_arr_exit.push(line_dm_pr_3);
+	rect_dm.check = function(){
+		if(this.checkEntr()){
+			if(line_pr_2_dm_we.data == 1){			//load
+				this.on();
+				line_dm_pr_3.data = rect_mem[line_pr_2_dm_a.data].data;
+				
+				line_dm_pr_3.setSig(2);
+			}else if(line_pr_2_dm_we.data == 2){	//store
+				this.on();
+				rect_mem[line_pr_2_dm_a.data].data = line_pr_2_dm_di.data;
+
+				//内部解决store  rd rd 相关
+				if (store_rd_relate_rd != 0)
+				{
+					if (store_rd_relate_rd == -1)
+						rect_mem[line_pr_2_dm_a.data].data = store_rd_relate_rd_data;
+					else
+						rect_mem[line_pr_2_dm_a.data].data = rect_reg[store_rd_relate_rd].data;
+					//rect_reg[store_rd_relate_rd].data;
+					store_rd_relate_rd = 0;
+				}
+
+				line_dm_pr_3.setSig(1);
+				line_dm_pr_3.data = "none";
+			}else{									//普通指令
+				line_dm_pr_3.setSig(1);
+				line_dm_pr_3.data = "none";
+			}
+			this.resetEntr();
+		}else{
+			this.off();
+		}
+
+		//显示存储器内容
+		for (var i = 0; i < 10; i++){
+			rect_mem[i].showContent(rect_mem[i].data);
+		}
+	};
+	//rect_pr2
+	rect_pr_2.line_arr_entr.push(line_pr_1_pr_2_d, line_alu_pr_2_z, line_alu_pr_2_r, line_pr_1_pr_2_s, line_pr_1_pr_2_wz, line_pr_1_pr_2_wmem, line_pr_1_pr_2_sld, line_pr_1_pr_2_wreg);
+	rect_pr_2.line_arr_exit.push(line_pr_2_pr_3_d, line_pr_2_decoder_d, line_pr_2_decoder_zero, line_pr_2_dm_a, line_pr_2_pr_3_c, line_pr_2_mux_a, line_pr_2_mux_b, line_pr_2_dm_di, line_pr_2_dm_we, line_pr_2_pr_3_sld, line_pr_2_pr_3_wreg, line_pr_2_decoder_wreg);
+	rect_pr_2.check = function(){
+		if(this.checkEntr()){
+			this.on();
+			this.is_on = true;
+			sect_1_bool = false;
+
+			//存储begin
+			this.d = line_pr_1_pr_2_d.data;
+			//if (line_pr_1_pr_2_wz == 1)
+			this.z = line_alu_pr_2_z.data;
+			this.r = line_alu_pr_2_r.data;
+			this.s = line_pr_1_pr_2_s.data;
+			this.wmem = line_pr_1_pr_2_wmem.data;
+			this.sld = line_pr_1_pr_2_sld.data;
+			this.wreg = line_pr_1_pr_2_wreg.data;
+			//存储end
+
+			this.resetEntr();
+
+			rect_inst[2].showInst(" ");
+			//
+			rect_inst[3].data = rect_inst[2].data;
+			if (rect_inst[3].data != 0)
+				rect_inst[3].showInst(rect_inst[3].data);
+
+		}else if((!im_bool || rect_ir.is_on) && (!sect_0_bool || rect_pr_1.is_on) && this.is_on){
+			this.off();
+			this.is_on = false;
+
+			//赋值begin
+			line_pr_2_pr_3_d.data = this.d;
+			line_pr_2_decoder_d.data = this.d;
+			line_pr_2_decoder_zero.data = this.z;
+			line_pr_2_dm_a.data = this.r;
+			line_pr_2_pr_3_c.data = this.r;
+			line_pr_2_mux_a.data = this.r;
+			line_pr_2_mux_b.data = this.r;
+			line_pr_2_dm_di.data = this.s;
+			line_pr_2_dm_we.data = this.wmem;
+			line_pr_2_pr_3_sld.data = this.sld;
+			line_pr_2_pr_3_wreg.data = this.wreg;
+			line_pr_2_decoder_wreg.data = this.wreg;
+
+			line_pr_2_pr_3_d.sig = 2;
+			line_pr_2_decoder_d.sig = 2;
+			line_pr_2_decoder_zero.sig = 2;
+			line_pr_2_dm_a.sig = 2;
+			line_pr_2_pr_3_c.sig = 2;
+			line_pr_2_mux_a.sig = 2;
+			line_pr_2_mux_b.sig = 2;
+			if(this.wmem != 2){ 				//store
+				line_pr_2_dm_di.sig = 1;
+			}else{
+				line_pr_2_dm_di.sig = 2;
+			}
+			line_pr_2_dm_we.sig = 2;
+			line_pr_2_pr_3_sld.sig = 2;
+			line_pr_2_pr_3_wreg.sig = 2;
+			line_pr_2_decoder_wreg.sig = 2;
+			//赋值end
+
+			rect_pr_2.d = "none";
+			rect_pr_2.z = "none";
+			rect_pr_2.r = "none";
+			rect_pr_2.s = "none";
+			rect_pr_2.wmem = "none";
+			rect_pr_2.sld = "none";
+			rect_pr_2.wreg = "none";
+		}
+	};
+	//rect_alu
+	rect_alu.line_arr_entr.push(line_mux_a_alu, line_mux_b_alu, line_pr_1_alu);
+	rect_alu.line_arr_exit.push(line_alu_pr_2_z, line_alu_pr_2_r);
+	rect_alu.check = function(){
+		if(this.checkEntr()){
+			var data_a = line_mux_a_alu.data;
+			var data_b = line_mux_b_alu.data;
+			var rslt;
+			var zero = 0;
+
+			this.on();
+			switch(line_pr_1_alu.data){
+				case 1: 		//+
+					rslt = data_a + data_b;
+					break;
+				case 2: 		//-
+					rslt = data_a - data_b;
+					break;
+				case 3: 		//*
+					rslt = data_a * data_b;
+					break;
+				case 4: 		// |
+					rslt = data_a | data_b;
+					break;
+				case 5: 		// &
+					rslt = data_a & data_b;
+					break;
+				case 6: 		// 异或
+					rslt = data_a ^ data_b;
+					break;
+				case 7: 		//算术右移
+					rslt = data_a >> data_b;
+					break;
+				case 8: 		//逻辑左移
+					rslt = data_a << data_b;
+					break;
+				case 9: 		//逻辑右移
+					rslt = data_a >>> data_b;
+					break;
+				case 10:
+					rslt = (data_b << 16) | data_a;
+					break;
+				default:
+					alert("undefined operation: "+line_pr_1_alu.data);
+			}
+			if(rslt == 0){
+				zero = 1;
+			}
+			//alert("a="+data_a+"  b="+data_b+" rslt="+rslt);
+			line_alu_pr_2_r.data = rslt;
+			line_alu_pr_2_z.data = zero;
+
+			line_alu_pr_2_r.setSig(2);
+			line_alu_pr_2_z.setSig(2);
+
+			this.resetEntr();
+		}else{
+			this.off();
+		}
+	};
+	//rect_mux_a
+	rect_mux_a.line_arr_entr.push(line_pr_1_mux_a_adepen, line_pr_1_mux_a);
+	rect_mux_a.line_arr_exit.push(line_mux_a_alu);
+	rect_mux_a.check = function(){
+		if(this.checkEntr()){
+			this.on();
+			//alert("adepend="+line_pr_1_mux_a_adepen.data);
+			switch(line_pr_1_mux_a_adepen.data){
+				case 0:
+					line_mux_a_alu.data = line_pr_1_mux_a.data;
+					break;
+				case 1:
+					line_mux_a_alu.data = line_1_mux_a.data;
+					break;
+				case 2:
+					line_mux_a_alu.data = line_pr_2_mux_a.data;
+					break;
+				case 3:
+					line_mux_a_alu.data = line_mux_2_mux_a.data;
+					break;
+			}
+
+			line_mux_a_alu.setSig(2);
+
+			line_pr_1_mux_a.sig = 0;
+			line_1_mux_a.sig = 0;
+			line_pr_2_mux_a.sig = 0;
+			line_mux_2_mux_a.sig = 0;
+			line_pr_1_mux_a_adepen.sig = 0;
+		}else{
+			this.off();
+		}
+	};
+	//rect_mux_b
+	rect_mux_b.line_arr_entr.push(line_pr_1_mux_b_bdepen, line_pr_1_mux_b_0, line_pr_1_mux_b_1);
+	rect_mux_b.line_arr_exit.push(line_mux_b_alu);
+	rect_mux_b.check = function(){
+		if(this.checkEntr()){
+			this.on();
+
+			switch(line_pr_1_mux_b_bdepen.data){
+				case 0:
+					line_mux_b_alu.data = line_pr_1_mux_b_0.data;
+					break;
+				case 1:
+					line_mux_b_alu.data = line_pr_1_mux_b_1.data;
+					break;
+				case 2:
+					line_mux_b_alu.data = line_pr_2_mux_b.data;
+					break;
+				case 3:
+					line_mux_b_alu.data = line_mux_2_mux_b.data;
+					break;
+			}
+
+			line_mux_b_alu.setSig(2);
+
+			line_pr_1_mux_b_0.sig = 0;
+			line_pr_1_mux_b_1.sig = 0;
+			line_pr_2_mux_b.sig = 0;
+			line_mux_2_mux_b.sig = 0;
+			line_pr_1_mux_b_bdepen.sig = 0;
+		}else{
+			this.off();
+		}
+	};
+	//rect_decoder
+	rect_decoder.line_arr_entr.push(line_ir_decoder_opcode, line_ir_decoder_rs1, line_ir_decoder_rs2, line_ir_decoder_rd);
+	rect_decoder.line_arr_exit.push(line_decoder_pr_1_bdepen, line_decoder_pr_1_adepen, line_decoder_pr_1_aluop, line_decoder_pr_1_wz, line_decoder_pr_1_sld, line_decoder_pr_1_wmen, line_decoder_pr_1_wreg, line_decoder_mux_3);
+	rect_decoder.check = function(){
+		if(this.checkEntr()){
+			var op = line_ir_decoder_opcode.data;
+			var rs1 = line_ir_decoder_rs1.data;
+			var rs2 = line_ir_decoder_rs2.data;
+			var rd = line_ir_decoder_rd.data;
+			line_ir_decoder_opcode.data = 0;
+			line_ir_decoder_rs1.data = 0;
+			line_ir_decoder_rs2.data = 0;
+			line_ir_decoder_rd.data = 0;
+			var mwreg = -1;
+			var ewreg = -1;
+			var mrd = -1;
+			var erd = -1;
+			var zero = 0;
+
+			this.on();
+
+			if (line_pr_2_decoder_wreg.sig == 2){
+				mwreg = line_pr_2_decoder_wreg.data;
+				line_pr_2_decoder_wreg.data = 0;
+			}
+			if (line_pr_1_decoder_wreg.sig == 2){
+				ewreg = line_pr_1_decoder_wreg.data;
+				line_pr_1_decoder_wreg.data = 0;
+			}
+			if (line_pr_2_decoder_d.sig == 2){
+				mrd = line_pr_2_decoder_d.data;
+				line_pr_2_decoder_d.data = 0;
+			}
+			if (line_pr_1_decoder_d.sig == 2){
+				erd = line_pr_1_decoder_d.data;
+				line_pr_1_decoder_d.data = 0;
+			}
+			if (line_pr_2_decoder_zero.sig == 2){
+				zero = line_pr_2_decoder_zero.data;
+				line_pr_2_decoder_zero.data = 0;
+			}
+				
+
+			//aluop
+			switch (op){
+				case "add":
+				case "addi":
+				case "load":
+				case "store":
+					line_decoder_pr_1_aluop.data = 1;	//"+"
+					break;
+				case "sub":
+				case "subi":
+					line_decoder_pr_1_aluop.data = 2;	//"-"
+					break;
+				case "mul":
+				case "muli":
+					line_decoder_pr_1_aluop.data = 3;	//"*"
+					break;
+				case "or":
+				case "ori":
+					line_decoder_pr_1_aluop.data = 4;	//"|"
+					break;
+				case "and":
+				case "andi":
+					line_decoder_pr_1_aluop.data = 5;	//"&"
+					break;
+				case "xor":
+				case "xori":
+					line_decoder_pr_1_aluop.data = 6;	//异或
+					break;
+				case "sra":
+					line_decoder_pr_1_aluop.data = 7;	//算术右移
+					break;
+				case "sll":
+					line_decoder_pr_1_aluop.data = 8;	//逻辑左移
+					break;
+				case "srl":
+					line_decoder_pr_1_aluop.data = 9;	//逻辑右移
+					break;
+				case "lui":
+					line_decoder_pr_1_aluop.data = 10;
+					break;
+			}
+			//adepend  bdepend
+			line_decoder_pr_1_adepen.data = 0;
+			line_decoder_pr_1_bdepen.data = 0;
+
+			if (mrd == rs1){
+				line_decoder_pr_1_adepen.data = 3;
+			}
+			if (mrd == rs2){
+				line_decoder_pr_1_bdepen.data = 3;
+			}
+			if (erd == rs1){
+				line_decoder_pr_1_adepen.data = 2;
+			}
+			if (erd == rs2){
+				line_decoder_pr_1_bdepen.data = 2;
+			}
+			if (op == "addi" || op == "subi" || op == "muli" || op == "ori" || op == "xori" || op == "andi" || op== "load" || op == "store" || op == "sra" || op == "srl" || op == "sll" || op == "lui"){
+				line_decoder_pr_1_bdepen.data = 1;
+			}
+
+			//wz
+			line_decoder_pr_1_wz.data = zero;
+
+			//mem
+			line_decoder_pr_1_wmen.data = 0;
+			if(op == "load"){
+				line_decoder_pr_1_wmen.data = 1;
+			}
+			if(op == "store"){
+				line_decoder_pr_1_wmen.data = 2;
+			}
+
+			//sld
+			line_decoder_pr_1_sld.data = line_decoder_pr_1_wmen.data;
+
+			//wreg
+			line_decoder_pr_1_wreg.data = 1;
+			if (op == "store"){
+				line_decoder_pr_1_wreg.data = 0;
+			}
+
+			//jump, beq, bne
+			line_decoder_mux_3.data = 1;
+			if(op == "jump"){
+				line_decoder_mux_3.data = 0;
+			}
+			if((op == "bne") && (zero == 0)){
+				line_decoder_mux_3.data =  0;
+			}
+			if((op == "beq") && (zero == 1)){
+				line_decoder_mux_3.data = 0;
+			}
+
+			//mux_1
+			if(op == "store"){
+				line_decoder_mux_1.data = 1;
+			}else if(op == "addi" || op == "subi" || op == "muli" || op == "ori" || op == "xori" || op == "andi" || op == "load" || op == "sra" || op == "sll" ||op == "srl" || op == "lui"){
+				line_decoder_mux_1.data = 2;
+			}else{
+				line_decoder_mux_1.data = 0;
+			}
+			//store rd rd 相关
+			if((op == "store") && (rd == mrd)){
+				store_rd_relate_rd = Number(rd[1]);
+			}if((op == "store") && (rd == erd)){
+				store_rd_relate_rd = -1;
+			}
+
+
+			line_decoder_pr_1_bdepen.setSig(2);
+			line_decoder_pr_1_adepen.setSig(2);
+			line_decoder_pr_1_aluop.setSig(2);
+			line_decoder_pr_1_wz.setSig(2);
+			line_decoder_pr_1_wmen.setSig(2);
+			line_decoder_pr_1_sld.setSig(2);
+			line_decoder_pr_1_wreg.setSig(2);
+			line_decoder_mux_1.setSig(2);
+			line_decoder_mux_3.setSig(2);
+
+			if (op == "jump" || op == "bne" || op == "beq"){
+				line_decoder_pr_1_bdepen.sig = 0;
+				line_decoder_pr_1_adepen.sig = 0;
+				line_decoder_pr_1_aluop.sig = 0;
+				line_decoder_pr_1_wz.sig = 0;
+				line_decoder_pr_1_wmen.sig = 0;
+				line_decoder_pr_1_sld.sig = 0;
+				line_decoder_pr_1_wreg.sig = 0;
+				line_decoder_mux_1.sig = 0;
+			}
+			//alert("mrd="+mrd+"  erd="+erd+"  rs1="+rs1+"  rs2="+rs2+"  adepend ="+line_decoder_pr_1_adepen.data);
+			this.resetEntr();
+			line_pr_2_decoder_wreg.sig = 0;
+			line_pr_1_decoder_wreg.sig = 0;
+			line_pr_2_decoder_d.sig = 0;
+			line_pr_1_decoder_d.sig = 0;
+			line_pr_2_decoder_zero.sig = 0;
+
+		}else{
+			this.off();
+		}
+	};
+	//hlx end
+
+
+	//wyy begin
+	//rect_ir
+	rect_ir.line_arr_entr.push(line_im_ir);
+	rect_ir.line_arr_exit.push(line_ir_ise, line_ir_rf, line_ir_dse, line_ir_pr_1, line_ir_mux_1_rd, line_ir_mux_1_rs2, line_ir_decoder_rd, line_ir_decoder_rs1, line_ir_decoder_rs2, line_ir_decoder_opcode);
+	rect_ir.check = function(){
+		if(this.checkEntr()){
+			this.on();
+			this.is_on = true;
+			var	inst_arr = line_im_ir.data.split(/\s+/);
+			//alert("inst "+line_im_ir.data);
+			this.setExit();								//所有出口线sig置1
+
+			line_ir_decoder_opcode.setSig(2);				//op
+			line_ir_decoder_opcode.data = inst_arr[0];
+
+			if(inst_arr[1][0] == '#'){					//1个操作数，即jump、bne或beq
+				line_ir_dse.setSig(2);
+				line_ir_dse.data = inst_arr[1];
+
+				line_ir_rf.sig = 0;
+				line_ir_pr_1.sig = 0;
+				line_ir_mux_1_rs2.sig = 0;
+				line_ir_mux_1_rd.sig = 0;
+				line_ir_ise.sig = 0;
+				line_ir_decoder_opcode.data = inst_arr[0];
+				line_ir_decoder_opcode.setSig(2);
+				line_ir_decoder_rs1.sig = 1;
+				line_ir_decoder_rs2.sig = 1;
+				line_ir_decoder_rd.sig = 1;
+
+			}else if(inst_arr[2][0] == '#'){			//2个操作数，即lui
+				line_ir_dse.setSig(2);
+				line_ir_dse.data = inst_arr[2];
+				line_ir_ise.setSig(2);
+				line_ir_ise.data = inst_arr[2];
+
+				line_ir_pr_1.setSig(2);
+				line_ir_pr_1.data = inst_arr[1];
+				line_ir_decoder_rd.setSig(2);
+				line_ir_decoder_rd.data = inst_arr[1];
+				line_ir_mux_1_rd.setSig(2);
+				line_ir_mux_1_rd.data = inst_arr[1];
+				line_ir_rf.setSig(2);
+				line_ir_rf.data = inst_arr[1];
+				line_ir_decoder_rs1.setSig(2);
+				line_ir_decoder_rs1.data = inst_arr[1];
+				//alert("line_ir_rf.sig = "+line_ir_rf.sig+"  line_ir_rf.data"+line_ir_rf.data);
+			
+			}else{
+				line_ir_pr_1.setSig(2);
+				line_ir_pr_1.data = inst_arr[1];
+				line_ir_decoder_rd.setSig(2);
+				line_ir_decoder_rd.data = inst_arr[1];
+				line_ir_mux_1_rd.setSig(2);
+				line_ir_mux_1_rd.data = inst_arr[1];
+
+				line_ir_rf.setSig(2);
+				line_ir_rf.data = inst_arr[2];
+				line_ir_decoder_rs1.setSig(2);
+				line_ir_decoder_rs1.data = inst_arr[2];
+
+				if(inst_arr[3][0] == '#'){				//第二源操作数，立即数
+					line_ir_dse.setSig(2);
+					line_ir_dse.data = inst_arr[3];
+					line_ir_ise.setSig(2);
+					line_ir_ise.data = inst_arr[3];
+				}else{
+					line_ir_mux_1_rs2.setSig(2);
+					line_ir_mux_1_rs2.data = inst_arr[3];
+					line_ir_decoder_rs2.setSig(2);
+					line_ir_decoder_rs2.data = inst_arr[3];
+				}
+			}
+			this.resetEntr();
+			//显示ID级指令
+			rect_inst[0].showInst(" ");
+			rect_inst[1].data = rect_inst[0].data;
+			if (rect_inst[1].data != 0)
+				rect_inst[1].showInst(rect_inst[1].data);
+
+		}else if(this.is_on){
+			this.off();
+			this.is_on = false;
+			sect_0_bool = true;
+		}
+	};
+
+	//rect_mux_1
+	rect_mux_1.line_arr_entr.push(line_ir_mux_1_rd, line_ir_mux_1_rs2, line_decoder_mux_1);
+	rect_mux_1.line_arr_exit.push(line_mux_1_rf);
+	rect_mux_1.check = function(){
+		if(this.checkEntr()){
+			this.on();
+			this.resetEntr();
+			line_mux_1_rf.setSig(2);
+			if(line_decoder_mux_1.data == 0){
+				line_mux_1_rf.data = line_ir_mux_1_rs2.data;
+			}else if (line_decoder_mux_1.data == 1){
+				line_mux_1_rf.data = line_ir_mux_1_rd.data;
+			}else{
+				line_mux_1_rf.setSig(1);
+			}
+		}else{
+			this.off();
+		}
+	};
+
+	//rect_ise
+	rect_ise.line_arr_entr.push(line_ir_ise);
+	rect_ise.line_arr_exit.push(line_ise_pr_1);
+	rect_ise.check = function(){
+		if(this.checkEntr()){
+			if(line_ir_ise.sig == 2){
+				this.on();
+				line_ise_pr_1.setSig(2);
+				var tmp = line_ir_ise.data.slice(1);
+				line_ise_pr_1.data = Number(tmp);
+			}else{
+				line_ise_pr_1.setSig(1);
+			}
+			this.resetEntr();
+
+		}else{
+			this.off();
+		}
+	};
+
+	//rect_rf
+	rect_rf.check = function(){
+		var sig = 0;
+
+		if(line_ir_rf.enable()){
+			this.on();
+			line_rf_pr_1_a.setSig(2);
+			//alert("line_ir_rf.sig="+line_ir_rf.sig);
+			if (line_ir_rf.sig == 2)
+			{
+				//alert(Number(line_ir_rf.data[1]));
+				line_rf_pr_1_a.data = rect_reg[Number(line_ir_rf.data[1])].data;
+			}
+			line_ir_rf.sig = 0;
+			sig++;
+		}
+		if(line_mux_1_rf.enable()){
+			this.on();
+			if (line_mux_1_rf.sig == 2)
+			{
+				line_rf_pr_1_b.data = rect_reg[Number(line_mux_1_rf.data[1])].data;
+			}
+			
+			line_rf_pr_1_b.setSig(line_mux_1_rf.sig);
+			line_mux_1_rf.sig = 0;
+
+			sig++;
+		}
+		if(line_mux_2_rf.enable() && line_pr_3_rf_we.enable() && line_pr_3_rf_ad.enable()){
+			this.on();
+			line_mux_2_rf.sig = 0;
+			line_pr_3_rf_we.sig = 0;
+			line_pr_3_rf_ad.sig = 0;
+			if(line_pr_3_rf_we.data == 1){
+				//设置寄存器堆的值
+				rect_reg[Number(line_pr_3_rf_ad.data[1])].data = line_mux_2_rf.data;
+			}
+			sig++;
+			//
+			rect_inst[4].showInst(" ");
+		}
+
+		if(sig == 0){
+			this.off();
+		}
+
+		//显示寄存器堆的内容
+		for(var i = 0; i < 10; i++){
+			rect_reg[i].showContent(rect_reg[i].data);
+		}
+	};
+
+	//rect_pr_1
+	rect_pr_1.line_arr_entr.push(line_ir_pr_1, line_rf_pr_1_a, line_rf_pr_1_b, line_ise_pr_1, line_decoder_pr_1_wreg, line_decoder_pr_1_bdepen, line_decoder_pr_1_sld, line_decoder_pr_1_wmen, line_decoder_pr_1_wz, line_decoder_pr_1_aluop, line_decoder_pr_1_adepen);
+	rect_pr_1.line_arr_exit.push(line_pr_1_pr_2_d, line_pr_1_decoder_d, line_pr_1_mux_a, line_pr_1_mux_b_0, line_pr_1_pr_2_s, line_pr_1_mux_b_1, line_pr_1_mux_b_bdepen, line_pr_1_mux_a_adepen, line_pr_1_alu, line_pr_1_pr_2_wreg, line_pr_1_pr_2_sld, line_pr_1_pr_2_wmem, line_pr_1_pr_2_wz, line_pr_1_decoder_wreg);
+	rect_pr_1.check = function(){
+		if(this.checkEntr()){
+			this.on();
+			this.is_on = true;
+			sect_0_bool = false;
+
+			//存储begin
+			if(line_ir_pr_1.sig == 2){
+				this.d = line_ir_pr_1.data;
+			}
+			if(line_rf_pr_1_a.sig == 2){
+				this.a = line_rf_pr_1_a.data;
+			}
+			if(line_rf_pr_1_b.sig == 2){
+				this.b = line_rf_pr_1_b.data;
+			}
+			if(line_ise_pr_1.sig == 2){
+				this.i = line_ise_pr_1.data;
+			}
+			if(line_decoder_pr_1_bdepen.sig == 2){
+				this.bdepend = line_decoder_pr_1_bdepen.data;
+			}
+			if(line_decoder_pr_1_adepen.sig == 2){
+				this.adepend = line_decoder_pr_1_adepen.data;
+			}
+			if(line_decoder_pr_1_aluop.sig == 2){
+				this.aluop = line_decoder_pr_1_aluop.data;
+			}
+			if(line_decoder_pr_1_wz.sig == 2){
+				this.wz = line_decoder_pr_1_wz.data;
+			}
+			if(line_decoder_pr_1_wmen.sig == 2){
+				this.wmem = line_decoder_pr_1_wmen.data;
+			}
+			if(line_decoder_pr_1_sld.sig == 2){
+				this.sld = line_decoder_pr_1_sld.data;
+			}
+			if(line_decoder_pr_1_wreg.sig == 2){
+				this.wreg = line_decoder_pr_1_wreg.data;
+			}
+			this.resetEntr();
+			//存储end
+			rect_inst[1].showInst(" ");
+			//
+			rect_inst[2].data = rect_inst[1].data;
+			if (rect_inst[2].data != 0)
+				rect_inst[2].showInst(rect_inst[2].data);
+
+		}else if((!im_bool || rect_ir.is_on) && this.is_on){
+			this.off();
+			this.is_on = false;
+			sect_1_bool = true;
+			
+			//赋值begin
+			this.setExit(true);
+
+			if(this.d != "none"){
+				line_pr_1_pr_2_d.sig = 2;
+				line_pr_1_decoder_d.sig = 2;
+				line_pr_1_pr_2_d.data = this.d;
+				line_pr_1_decoder_d.data = this.d;
+			}
+			if(this.a != "none"){
+				line_pr_1_mux_a.sig = 2;
+				line_pr_1_mux_a.mutex = 1;
+				line_pr_1_mux_a.data = this.a;
+			}
+			if(this.b != "none"){
+				line_pr_1_mux_b_0.sig = 2;
+				line_pr_1_mux_b_0.mutex = 1;
+				line_pr_1_pr_2_s.sig = 2;
+				line_pr_1_mux_b_0.data = this.b;
+				line_pr_1_pr_2_s.data = this.b;
+			}
+			if(this.i != "none"){
+				line_pr_1_mux_b_1.sig = 2;
+				line_pr_1_mux_b_1.mutex = 1;
+				line_pr_1_mux_b_1.data = this.i;
+			}
+			if(this.bdepen != "none"){
+				line_pr_1_mux_b_bdepen.sig = 2;
+				line_pr_1_mux_b_bdepen.mutex = 1;
+				line_pr_1_mux_b_bdepen.data = this.bdepend;
+			}
+			if(this.adepen != "none"){
+				line_pr_1_mux_a_adepen.sig = 2;
+				line_pr_1_mux_a_adepen.mutex = 1;
+				line_pr_1_mux_a_adepen.data = this.adepend;
+			}
+			if(this.aluop != "none"){
+				line_pr_1_alu.sig = 2;
+				line_pr_1_alu.data = this.aluop;
+			}
+			if(this.wz != "none"){
+				line_pr_1_pr_2_wz.sig = 2;
+				line_pr_1_pr_2_wz.data = this.wz;
+			}
+			if(this.wmen != "none"){
+				line_pr_1_pr_2_wmem.sig = 2;
+				//var tmp = this.wmen
+				line_pr_1_pr_2_wmem.data = this.wmem;
+			}
+			if(this.sld != "none"){
+				line_pr_1_pr_2_sld.sig = 2;
+				line_pr_1_pr_2_sld.data = this.sld;
+			}
+			if(this.wreg != "none"){
+				line_pr_1_pr_2_wreg.sig = 2;
+				line_pr_1_decoder_wreg.sig = 2;
+				line_pr_1_pr_2_wreg.data = this.wreg;
+				line_pr_1_decoder_wreg.data = this.wreg;
+			}
+			//赋值end
+
+			rect_pr_1.d = "none";
+			rect_pr_1.a = "none";
+			rect_pr_1.b = "none";
+			rect_pr_1.i = "none";
+			rect_pr_1.adepend = "none";
+			rect_pr_1.bdepend = "none";
+			rect_pr_1.aluop = "none";
+			rect_pr_1.wz = "none";
+			rect_pr_1.wmem = "none";
+			rect_pr_1.wreg = "none";
+			rect_pr_1.sld = "none";
+		}
+	};
+	//wyy end
+
+	
+//controller
+	var example = document.getElementById("example"),
+		input = document.getElementById("input"),
+		analyse = document.getElementById("analyse"),
+		analyse_result = document.getElementById("analyse_result"),
+		b_next = document.getElementById("next"),
+		b_back = document.getElementById("back"),
+		b_start = document.getElementById("start"),
+		code_arr = [],
+		b_start_state = true,
+		play_state = true,
+		analyse_state = false;
+
+	//animation controller
+	function play(){
+		objs_rect.forEach(function(item, index, array){
+			item.check();
+		});
+		objs_line.forEach(function(item, index, array){
+			item.check();
+		});
+	}
+
+	function autoPlay(){
+		if(play_state){
+			play();
+			setTimeout(autoPlay, 500);
+		}
+	}
+
+	function playNext(){
+		if(analyse_state){
+			play();
+		}
+	}
+		
+	analyse.onclick = function(){
+		if(!analyse_state){
+			if(input.value){
+				code_arr = input.value.trim().toLowerCase().split('\n');
+				//消除load相关
+				clearLoadRelated();
+				//跳转指令前加一条无关指令
+				clearBneAndBeqInfluence();
+				alert("分析成功！");
+				analyse_state = true;
+				this.removeClass("active");
+				b_start.addClass("active");
+				b_next.addClass("active");
+				b_back.addClass("active");
+			}else{
+				alert("你好像忘输指令了~");
+			}
+		}
+	};
+
+	b_start.onclick = function(){
+		if(analyse_state){
+			if(b_start_state){
+				this.innerHTML = "暂停";
+				play_state = true;
+				autoPlay();
+			}else{
+				this.innerHTML = "播放";
+				play_state = false;
+			}
+			b_start_state = !b_start_state;
+		}
+	};
+
+	b_next.onclick = playNext;
+
+	document.onkeydown = function(){
+		if(event.keyCode == 78){			//快捷键n
+			playNext();
+		}
+	};
+	
+	b_back.onclick = function(){
+		location.href = "";
+	};
+
+	//example copy
+	var b_copy = document.getElementById("example").getElementsByTagName("a");
+	for(var i=0;i<b_copy.length;i++){
+		b_copy[i].onclick = function(){
+			input.value = this.previousSibling.previousSibling.innerText;
+		};
+	}
+
+//lib
+	Element.prototype.removeClass = function(name){
+        if(this.classList == undefined){
+            this.className = this.className.replace(new RegExp('\\b'+name+'(\\s|$)','g'),"");  
+        }else{
+            this.classList.remove(name);
+        }
+    };
+    Element.prototype.addClass = function(name){
+        if(this.classList == undefined){
+            this.className = this.className+' '+name;  
+        }else{
+            this.classList.add(name);
+        }
+    };
+</script>
+</html>
