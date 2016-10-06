@@ -5,3 +5,6 @@
 	path = dialoger
 	url = https://github.com/dragonwong/dialoger.git
 	branch = master
+[submodule "freeloancalculator"]
+	path = freeloancalculator
+	url = https://github.com/dragonwong/freeloancalculator.git
