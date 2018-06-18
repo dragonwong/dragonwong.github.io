@@ -8,3 +8,6 @@
 [submodule "freeloancalculator"]
 	path = freeloancalculator
 	url = https://github.com/dragonwong/freeloancalculator.git
+[submodule "photo-printer"]
+	path = photo-printer
+	url = git://github.com/dragonwong/photo-printer.git
